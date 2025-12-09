@@ -1,0 +1,35 @@
+reviews:
+  profile: "assertive"
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+    ignore_title_keywords:
+      - "WIP"
+      - "DO NOT REVIEW"
+
+chat:
+  auto_reply: true
+
+# Focus areas for MetaMorph
+checks:
+  - memory-management
+  - resource-cleanup
+  - error-handling
+  - async-patterns
+  - security
+  - performance
+
+# Language-specific settings
+language_hints:
+  javascript:
+    - "Check for memory leaks in event listeners"
+    - "Verify async/await usage"
+    - "Ensure promise error handling"
+  typescript:
+    - "Validate type safety"
+    - "Check null/undefined handling"

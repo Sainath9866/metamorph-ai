@@ -1,0 +1,23 @@
+version: '3'
+
+services:
+  kestra:
+    image: kestra/kestra:latest
+    container_name: metamorph-kestra
+    ports:
+      - "8080:8080"
+    environment:
+      # OpenAI API Key for AI summarization
+      KESTRA_CONFIGURATION: |
+        secrets:
+          openai_api_key: ${OPENAI_API_KEY:-your_openai_key}
+          github_pat: ${GITHUB_PAT:-your_github_pat}
+          github_username: ${GITHUB_USERNAME:-your_username}
+          vercel_url: ${VERCEL_URL:-localhost:3000}
+    volumes:
+      - kestra-data:/app/storage
+      - ./flow.yaml:/app/flows/flow.yaml
+    restart: unless-stopped
+
+volumes:
+  kestra-data:

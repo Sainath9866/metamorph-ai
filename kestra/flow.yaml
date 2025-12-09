@@ -1,0 +1,66 @@
+id: metamorph_healing_loop
+namespace: ai.metamorph
+
+inputs:
+  - id: error_logs
+    type: STRING
+    defaults: "CRITICAL: Memory leak detected in src/vulnerable_code.js around line 15. Process exited with code 137."
+
+tasks:
+  # TASK 1: AI Log Summarization (Wakanda Award - AI for data summarization)
+  - id: analyze_logs
+    type: io.kestra.plugin.openai.ChatCompletion
+    apiKey: "{{ secret('OPENAI_API_KEY') }}"  # Can use OpenRouter or TogetherAI endpoint
+    model: gpt-3.5-turbo
+    messages:
+      - role: system
+        content: "You are a Senior DevOps Engineer and AI assistant. Your job is to analyze error logs and provide concise, actionable instructions for fixing the issue."
+      - role: user
+        content: |
+          Analyze this production error and provide a 2-sentence summary with:
+          1. The root cause
+          2. The specific fix needed
+          
+          Error log: {{ inputs.error_logs }}
+    
+  # TASK 2: Notify Vercel Dashboard (Stormbreaker Award - Real-time updates)
+  - id: notify_dashboard
+    type: io.kestra.plugin.core.http.Request
+    uri: "https://{{ secret('VERCEL_URL') }}/api/webhooks"  # Replace with your Vercel URL
+    method: POST
+    contentType: application/json
+    body: |
+      {
+        "status": "ANALYZING",
+        "message": "🧠 Kestra AI Analysis: {{ outputs.analyze_logs.choices[0].message.content }}",
+        "type": "warning",
+        "timestamp": "{{ now() }}"
+      }
+
+  # TASK 3: Trigger Cline Agent via GitHub Actions (Infinity Award - Autonomous agent)
+  - id: dispatch_agent
+    type: io.kestra.plugin.core.http.Request
+    uri: "https://api.github.com/repos/{{ secret('GITHUB_USERNAME') }}/metamorph-demo/dispatches"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ secret('GITHUB_PAT') }}"
+      Accept: "application/vnd.github.v3+json"
+    contentType: application/json
+    body: |
+      {
+        "event_type": "deploy-agent",
+        "client_payload": {
+          "mission": "{{ outputs.analyze_logs.choices[0].message.content }}",
+          "original_error": "{{ inputs.error_logs }}",
+          "timestamp": "{{ now() }}"
+        }
+      }
+
+  # TASK 4: Confirm Dispatch
+  - id: log_dispatch
+    type: io.kestra.plugin.core.log.Log
+    message: |
+      🚀 Self-healing loop initiated!
+      📊 Analysis: {{ outputs.analyze_logs.choices[0].message.content }}
+      🤖 Agent mission dispatched to GitHub Actions
+      ⏰ Timestamp: {{ now() }}
