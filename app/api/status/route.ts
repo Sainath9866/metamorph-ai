@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
-// This would connect to the same store as webhooks
-// For demo, we'll use a simple module-level variable
+// In-memory event store (for hackathon demo)
+// In production, use Vercel KV or similar
 let events: any[] = [];
 
 export async function GET() {
@@ -14,15 +14,25 @@ export async function GET() {
     });
 }
 
-// Helper to add events (used by trigger endpoint)
-export function addEvent(event: any) {
-    events.push({
-        ...event,
-        timestamp: new Date().toISOString(),
-    });
+export async function POST(request: Request) {
+    try {
+        const event = await request.json();
 
-    // Keep only last 50 events
-    if (events.length > 50) {
-        events = events.slice(-50);
+        events.push({
+            ...event,
+            timestamp: new Date().toISOString(),
+        });
+
+        // Keep only last 50 events
+        if (events.length > 50) {
+            events = events.slice(-50);
+        }
+
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        return NextResponse.json(
+            { success: false, error: 'Failed to add event' },
+            { status: 500 }
+        );
     }
 }
