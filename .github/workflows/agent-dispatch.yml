@@ -115,38 +115,74 @@ jobs:
           # Show Cline version (correct command)
           cline version 2>&1 || echo "⚠️ Could not get Cline version"
           
-          # Configure Cline authentication if needed
-          echo "🔐 Configuring Cline with API key..."
-          # Cline should pick up OPENAI_API_KEY from environment automatically
+          # Configure Cline authentication
+          echo "🔐 Configuring Cline authentication..."
+          # Cline should pick up OPENAI_API_KEY from environment, but let's verify
+          echo "Checking Cline auth status..."
+          cline auth list 2>&1 || echo "⚠️ Auth list command failed (may need setup)"
+          
+          # Try to authenticate if needed (non-interactive)
+          # Note: This might require interactive setup, so we'll try to use env vars directly
+          echo "Using OPENAI_API_KEY from environment..."
+          export CLINE_OPENAI_API_KEY="$OPENAI_API_KEY" || true
           
           # Run Cline in autonomous mode (oneshot + no-interactive)
           # Method 1: Direct prompt with --oneshot and --no-interactive (yolo mode)
           echo "📋 Running: cline \"...\" --oneshot --no-interactive"
-          cline "$TASK_PROMPT" --oneshot --no-interactive 2>&1 || {
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          OUTPUT=$(cline "$TASK_PROMPT" --oneshot --no-interactive 2>&1) || {
+            EXIT_CODE=$?
+            echo "$OUTPUT"
             echo ""
-            echo "⚠️ Method 1 failed, trying task new command..."
+            echo "⚠️ Method 1 failed (exit code: $EXIT_CODE), trying task new command..."
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             # Method 2: Use task new command
-            cline task new "$TASK_PROMPT" --oneshot --no-interactive 2>&1 || {
+            OUTPUT2=$(cline task new "$TASK_PROMPT" --oneshot --no-interactive 2>&1) || {
+              EXIT_CODE2=$?
+              echo "$OUTPUT2"
               echo ""
-              echo "⚠️ Method 2 failed, trying with yolo flag..."
+              echo "⚠️ Method 2 failed (exit code: $EXIT_CODE2), trying with yolo flag..."
               echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
               # Method 3: Use -y (yolo) flag instead
-              cline "$TASK_PROMPT" -o -y 2>&1 || {
+              OUTPUT3=$(cline "$TASK_PROMPT" -o -y 2>&1) || {
+                EXIT_CODE3=$?
+                echo "$OUTPUT3"
                 echo ""
                 echo "⚠️ All Cline methods failed"
-                echo "Check the logs above for details"
+                echo "Exit codes: Method1=$EXIT_CODE, Method2=$EXIT_CODE2, Method3=$EXIT_CODE3"
                 echo "Cline may need authentication or different configuration"
+                echo ""
+                echo "Trying to check Cline configuration..."
+                cline config list 2>&1 || echo "Config check failed"
               }
             }
           }
+          
+          # Show any output from successful method
+          if [ -n "$OUTPUT" ] && [ "$EXIT_CODE" != "0" ]; then
+            echo "$OUTPUT"
+          fi
           
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "✅ Cline execution step completed"
           echo ""
           echo "📝 Checking if code was modified..."
+          echo "Current git status:"
           git status --short || echo "⚠️ Git status check failed"
+          echo ""
+          echo "Checking if src/vulnerable_code.js was modified:"
+          git diff src/vulnerable_code.js || echo "No changes detected"
+          echo ""
+          echo "📊 File modification summary:"
+          if git diff --quiet src/vulnerable_code.js 2>/dev/null; then
+            echo "⚠️ No changes detected in src/vulnerable_code.js"
+            echo "Cline may not have executed successfully or made changes"
+          else
+            echo "✅ Changes detected in src/vulnerable_code.js"
+            echo "Showing diff:"
+            git diff src/vulnerable_code.js | head -50
+          fi
           echo ""
           
       - name: 🎯 Run Oumi Evaluation
