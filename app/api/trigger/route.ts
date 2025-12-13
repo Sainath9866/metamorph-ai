@@ -14,28 +14,43 @@ export async function POST(request: Request) {
 
         console.log('🔥 Simulating production failure:', error);
 
-        // Simulate triggering Kestra
-        // In real implementation:
-        // const response = await fetch(`${kestraUrl}/api/v1/executions/${namespace}/${flowId}`, {
-        //   method: 'POST',
-        //   headers: {
-        //     'Content-Type': 'application/json',
-        //   },
-        //   body: JSON.stringify({
-        //     inputs: {
-        //       error_logs: error,
-        //     },
-        //   }),
-        // });
+        // Trigger Kestra flow execution (requires multipart/form-data)
+        try {
+            const formData = new FormData();
+            formData.append('inputs.error_logs', error);
 
-        // For demo, just return success
-        return NextResponse.json({
-            success: true,
-            message: 'Kestra workflow triggered',
-            flowId,
-            namespace,
-            error,
-        });
+            const response = await fetch(`${kestraUrl}/api/v1/executions/${namespace}/${flowId}`, {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Kestra API error:', errorText);
+                return NextResponse.json({
+                    success: false,
+                    message: 'Failed to trigger Kestra workflow',
+                    error: errorText,
+                }, { status: response.status });
+            }
+
+            const execution = await response.json();
+            return NextResponse.json({
+                success: true,
+                message: 'Kestra workflow triggered successfully',
+                flowId,
+                namespace,
+                executionId: execution.id,
+                error,
+            });
+        } catch (fetchError) {
+            console.error('Error calling Kestra:', fetchError);
+            return NextResponse.json({
+                success: false,
+                message: 'Failed to connect to Kestra',
+                error: (fetchError as Error).message,
+            }, { status: 500 });
+        }
 
     } catch (error) {
         console.error('Trigger error:', error);

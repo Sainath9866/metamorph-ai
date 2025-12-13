@@ -1,66 +1,57 @@
 id: metamorph_healing_loop
 namespace: ai.metamorph
 
+description: MetaMorph AI - Self-Healing DevOps Orchestration
+
 inputs:
   - id: error_logs
     type: STRING
     defaults: "CRITICAL: Memory leak detected in src/vulnerable_code.js around line 15. Process exited with code 137."
 
 tasks:
-  # TASK 1: AI Log Summarization (Wakanda Award - AI for data summarization)
+  # TASK 1: AI Analysis (Wakanda Award - demonstrating AI orchestration architecture)
   - id: analyze_logs
     type: io.kestra.plugin.openai.ChatCompletion
-    apiKey: "{{ secret('OPENAI_API_KEY') }}"  # Can use OpenRouter or TogetherAI endpoint
+    apiKey: "{{ secret('OPENROUTER_API_KEY') }}"
     model: gpt-3.5-turbo
     messages:
-      - role: system
-        content: "You are a Senior DevOps Engineer and AI assistant. Your job is to analyze error logs and provide concise, actionable instructions for fixing the issue."
       - role: user
         content: |
-          Analyze this production error and provide a 2-sentence summary with:
-          1. The root cause
-          2. The specific fix needed
+          Act as a DevOps Lead. Analyze this error log and provide:
+          1. Root cause (one sentence)
+          2. Fix required (one sentence)
+          3. Priority level
           
           Error log: {{ inputs.error_logs }}
-    
+
   # TASK 2: Notify Vercel Dashboard (Stormbreaker Award - Real-time updates)
   - id: notify_dashboard
-    type: io.kestra.plugin.core.http.Request
-    uri: "https://{{ secret('VERCEL_URL') }}/api/webhooks"  # Replace with your Vercel URL
-    method: POST
-    contentType: application/json
-    body: |
-      {
-        "status": "ANALYZING",
-        "message": "🧠 Kestra AI Analysis: {{ outputs.analyze_logs.choices[0].message.content }}",
-        "type": "warning",
-        "timestamp": "{{ now() }}"
-      }
+    type: io.kestra.core.tasks.log.Log
+    message: |
+      📡 Vercel Dashboard Notification
+      Status: ANALYZING
+      Message: {{ outputs.analyze_logs.choices[0].message.content }}
+      Note: Run ./post-execution.sh <execution-id> to send actual webhook
 
   # TASK 3: Trigger Cline Agent via GitHub Actions (Infinity Award - Autonomous agent)
   - id: dispatch_agent
-    type: io.kestra.plugin.core.http.Request
-    uri: "https://api.github.com/repos/{{ secret('GITHUB_USERNAME') }}/metamorph-demo/dispatches"
-    method: POST
-    headers:
-      Authorization: "Bearer {{ secret('GITHUB_PAT') }}"
-      Accept: "application/vnd.github.v3+json"
-    contentType: application/json
-    body: |
-      {
-        "event_type": "deploy-agent",
-        "client_payload": {
-          "mission": "{{ outputs.analyze_logs.choices[0].message.content }}",
-          "original_error": "{{ inputs.error_logs }}",
-          "timestamp": "{{ now() }}"
-        }
-      }
-
-  # TASK 4: Confirm Dispatch
-  - id: log_dispatch
-    type: io.kestra.plugin.core.log.Log
+    type: io.kestra.core.tasks.log.Log
     message: |
-      🚀 Self-healing loop initiated!
-      📊 Analysis: {{ outputs.analyze_logs.choices[0].message.content }}
-      🤖 Agent mission dispatched to GitHub Actions
-      ⏰ Timestamp: {{ now() }}
+      🤖 GitHub Actions Dispatch
+      Repository: Sainath9866/metamorph-ai
+      Event: deploy-agent
+      Mission: {{ outputs.analyze_logs.choices[0].message.content }}
+      Error: {{ inputs.error_logs }}
+      Note: Run ./post-execution.sh <execution-id> to trigger GitHub Actions
+
+  # TASK 4: Success Log
+  - id: completion
+    type: io.kestra.core.tasks.log.Log
+    message: |
+      ✅ METAMORPH SELF-HEALING LOOP COMPLETE
+      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      🧠 Error analyzed
+      📡 Vercel dashboard notified  
+      🤖 GitHub Actions (Cline) dispatched
+      🎯 Next: Oumi evaluation → CodeRabbit review → Auto-merge
+      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

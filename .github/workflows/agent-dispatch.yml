@@ -30,7 +30,6 @@ jobs:
         run: |
           pip install radon ast-comments pylint
 
-      # Verify API key is accessible (without exposing it)
       - name: 🔐 Verify API Key
         env:
           OPENAI_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -39,7 +38,6 @@ jobs:
             echo "❌ Error: OPENROUTER_API_KEY secret is not set!"
             exit 1
           fi
-          # Check if key starts with sk- (OpenAI format)
           if [[ "$OPENAI_API_KEY" == sk-* ]]; then
             echo "✅ OpenAI API key detected (format: sk-...)"
           else
@@ -47,14 +45,43 @@ jobs:
           fi
           echo "✅ API key is accessible (length: ${#OPENAI_API_KEY} chars)"
 
-      # INFINITY AWARD: Installing and running Cline CLI
       - name: 🤖 Install Cline CLI
         run: |
           npm install -g cline
           echo "✅ Cline CLI installed successfully"
           cline version || echo "Version check failed, but continuing..."
 
-      # IRON INTELLIGENCE + INFINITY: Self-healing loop with Oumi evaluation
+      - name: 🔧 Configure Cline for CI/CD
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          echo "🔐 Configuring Cline authentication..."
+          
+          # Configure Cline non-interactively
+          cline auth --provider openrouter --apikey "$OPENAI_API_KEY" --modelid "openai/gpt-3.5-turbo" 2>&1 || {
+            echo "⚠️ OpenRouter auth failed, trying OpenAI provider..."
+            cline auth --provider openai --apikey "$OPENAI_API_KEY" --modelid "gpt-3.5-turbo" 2>&1 || {
+              echo "⚠️ OpenAI auth also failed, but continuing..."
+            }
+          }
+          
+          echo "✅ Authentication configured"
+          
+          # Start Cline core service in background (needed for CLI to work)
+          echo "🚀 Starting Cline core service..."
+          cline instance start --detach 2>&1 || {
+            echo "⚠️ Failed to start Cline instance, trying alternative method..."
+            # Try to start without detach flag
+            nohup cline instance start > /tmp/cline.log 2>&1 &
+            sleep 5
+            echo "✅ Cline service started in background"
+          }
+          
+          # Verify instance is running
+          sleep 3
+          cline instance list || echo "⚠️ Could not list instances"
+
       - name: ⚡ Execute Autonomous Healing
         env:
           ANTHROPIC_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -100,72 +127,78 @@ jobs:
           echo "📝 Task prepared for Cline"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           
-          # Run Cline with task command (as per plan.txt)
-          # This is the INFINITY AWARD: Cline CLI running autonomously in CI/CD
           echo "🤖 Executing Cline autonomous agent..."
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          
-          # Check if Cline command exists
-          if ! command -v cline &> /dev/null; then
-            echo "❌ Error: Cline CLI not found after installation"
-            echo "Trying to reinstall..."
-            npm install -g cline
-          fi
-          
-          # Show Cline version (correct command)
-          cline version 2>&1 || echo "⚠️ Could not get Cline version"
-          
-          # Configure Cline authentication (NON-INTERACTIVE) - ONLY ONCE
-          echo "🔐 Configuring Cline authentication..."
-          echo "Authenticating with OpenRouter provider..."
-          
-          # Authenticate Cline non-interactively (only if not already authenticated)
-          cline auth --provider openrouter --apikey "$OPENAI_API_KEY" --modelid "openai/gpt-3.5-turbo" 2>&1 || {
-            echo "⚠️ OpenRouter auth failed, trying OpenAI provider..."
-            cline auth --provider openai --apikey "$OPENAI_API_KEY" --modelid "gpt-3.5-turbo" 2>&1 || {
-              echo "⚠️ OpenAI auth also failed, but continuing..."
-            }
-          }
-          
-          echo "✅ Authentication configured"
-          echo ""
-          
-          # Run Cline with EXPLICIT flags (no positional args, no quotes around prompt)
-          # Using timeout to prevent infinite hangs (60 seconds should be enough)
-          echo "📋 Running Cline with explicit flags..."
-          echo "⏱️  Timeout: 60 seconds (should complete in 5-20 seconds normally)"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "Starting at $(date +%H:%M:%S)..."
           
-          # Use timeout and explicit flags - NO positional prompt argument
-          # Cline should accept the prompt via stdin or we need to use task new
-          OUTPUT=$(timeout 60 bash -c "echo '$TASK_PROMPT' | cline --oneshot --no-interactive" 2>&1) || {
+          # Save task prompt to a file
+          echo "$TASK_PROMPT" > /tmp/task_prompt.txt
+          
+          # Method 1: Use task new with prompt from stdin and explicit non-interactive flags
+          echo "📋 Attempting to create task with Cline..."
+          
+          # Try creating task with all non-interactive flags
+          OUTPUT=$(timeout 120 cline task new \
+            --no-interactive \
+            --yolo \
+            --oneshot \
+            --mode act \
+            --file src/vulnerable_code.js \
+            --output-format plain \
+            < /tmp/task_prompt.txt 2>&1) || {
             EXIT_CODE=$?
             echo "$OUTPUT"
             echo ""
-            echo "⚠️ Method 1 failed (exit code: $EXIT_CODE), trying task new..."
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            # Method 2: Use task new with explicit flags
-            OUTPUT2=$(timeout 60 cline task new --no-interactive -f src/vulnerable_code.js <<< "$TASK_PROMPT" 2>&1) || {
+            echo "⚠️ Task creation failed (exit code: $EXIT_CODE)"
+            
+            # Method 2: Try using the prompt as a positional argument with redirection
+            echo "Trying alternative method with stdin redirection..."
+            OUTPUT2=$(timeout 120 bash -c "cline --no-interactive --yolo --oneshot --mode act --file src/vulnerable_code.js --output-format plain < /tmp/task_prompt.txt" 2>&1) || {
               EXIT_CODE2=$?
               echo "$OUTPUT2"
               echo ""
-              echo "⚠️ Method 2 failed (exit code: $EXIT_CODE2)"
-              echo "Cline may need different approach for CI/CD"
+              echo "⚠️ Alternative method failed (exit code: $EXIT_CODE2)"
+              
+              # Method 3: Direct prompt on command line (escape quotes)
+              echo "Trying direct command line prompt..."
+              ESCAPED_PROMPT=$(echo "$TASK_PROMPT" | sed 's/"/\\"/g')
+              OUTPUT3=$(timeout 120 cline "$ESCAPED_PROMPT" --no-interactive --yolo --oneshot --mode act --file src/vulnerable_code.js --output-format plain 2>&1) || {
+                EXIT_CODE3=$?
+                echo "$OUTPUT3"
+                echo ""
+                echo "⚠️ All methods failed. Cline may require a running instance or different configuration."
+                echo "Last exit code: $EXIT_CODE3"
+              }
             }
           }
           
           echo ""
           echo "Completed at $(date +%H:%M:%S)"
           
-          # Show output if we got any
+          # Show any output we captured
           if [ -n "$OUTPUT" ]; then
+            echo "=== OUTPUT FROM METHOD 1 ==="
             echo "$OUTPUT"
           fi
           if [ -n "$OUTPUT2" ]; then
+            echo "=== OUTPUT FROM METHOD 2 ==="
             echo "$OUTPUT2"
           fi
+          if [ -n "$OUTPUT3" ]; then
+            echo "=== OUTPUT FROM METHOD 3 ==="
+            echo "$OUTPUT3"
+          fi
           
+          # Check Cline logs for debugging
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📋 Checking Cline logs..."
+          if [ -f /tmp/cline.log ]; then
+            echo "=== CLINE SERVICE LOG ==="
+            tail -50 /tmp/cline.log
+          fi
+          
+          # Check if Cline made any changes
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "✅ Cline execution step completed"
@@ -181,6 +214,11 @@ jobs:
           if git diff --quiet src/vulnerable_code.js 2>/dev/null; then
             echo "⚠️ No changes detected in src/vulnerable_code.js"
             echo "Cline may not have executed successfully or made changes"
+            echo ""
+            echo "💡 Debugging tips:"
+            echo "  - Check if Cline instance is running: cline instance list"
+            echo "  - Check Cline logs: cline logs list"
+            echo "  - Verify API key is working"
           else
             echo "✅ Changes detected in src/vulnerable_code.js"
             echo "Showing diff:"
@@ -199,13 +237,31 @@ jobs:
             exit 0  # Don't fail the workflow
           }
           
+      - name: 🧹 Cleanup
+        if: always()
+        run: |
+          echo "🧹 Cleaning up Cline instances..."
+          cline instance stop --all 2>&1 || echo "No instances to stop"
+          
       - name: ✅ Verification Summary
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "🎉 METAMORPH HEALING CYCLE COMPLETE"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "🧠 Kestra: Analyzed error logs with AI"
-          echo "🤖 Cline: Fixed code autonomously"
+          echo "🤖 Cline: Attempted autonomous code fixing"
           echo "🎯 Oumi: Evaluated code quality"
           echo "🛡️ CodeRabbit: Will review the PR"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          # Final status check
+          if git diff --quiet src/vulnerable_code.js 2>/dev/null; then
+            echo ""
+            echo "⚠️  Status: No code changes were made"
+            echo "    Cline may need additional configuration for CI/CD"
+            echo "    Consider using Cline API directly or alternative approaches"
+          else
+            echo ""
+            echo "✅ Status: Code was modified successfully"
+            echo "    Proceeding with PR creation"
+          fi
