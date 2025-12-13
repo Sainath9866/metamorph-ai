@@ -115,13 +115,11 @@ jobs:
           # Show Cline version (correct command)
           cline version 2>&1 || echo "⚠️ Could not get Cline version"
           
-          # Configure Cline authentication (NON-INTERACTIVE)
+          # Configure Cline authentication (NON-INTERACTIVE) - ONLY ONCE
           echo "🔐 Configuring Cline authentication..."
-          echo "Authenticating with OpenRouter/OpenAI provider..."
+          echo "Authenticating with OpenRouter provider..."
           
-          # Authenticate Cline non-interactively
-          # Based on config, it uses openrouter provider
-          # Format: cline auth --provider <provider> --apikey <key> --modelid <model> --baseurl <optional>
+          # Authenticate Cline non-interactively (only if not already authenticated)
           cline auth --provider openrouter --apikey "$OPENAI_API_KEY" --modelid "openai/gpt-3.5-turbo" 2>&1 || {
             echo "⚠️ OpenRouter auth failed, trying OpenAI provider..."
             cline auth --provider openai --apikey "$OPENAI_API_KEY" --modelid "gpt-3.5-turbo" 2>&1 || {
@@ -129,42 +127,43 @@ jobs:
             }
           }
           
-          # Verify authentication
-          echo "Verifying authentication..."
-          cline auth list 2>&1 || echo "⚠️ Could not list auth (may still work)"
+          echo "✅ Authentication configured"
+          echo ""
           
-          # Run Cline in autonomous mode (oneshot + no-interactive)
-          # Method 1: Direct prompt with --oneshot and --no-interactive (yolo mode)
-          echo "📋 Running: cline \"...\" --oneshot --no-interactive"
+          # Run Cline with EXPLICIT flags (no positional args, no quotes around prompt)
+          # Using timeout to prevent infinite hangs (60 seconds should be enough)
+          echo "📋 Running Cline with explicit flags..."
+          echo "⏱️  Timeout: 60 seconds (should complete in 5-20 seconds normally)"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          OUTPUT=$(cline "$TASK_PROMPT" --oneshot --no-interactive 2>&1) || {
+          echo "Starting at $(date +%H:%M:%S)..."
+          
+          # Use timeout and explicit flags - NO positional prompt argument
+          # Cline should accept the prompt via stdin or we need to use task new
+          OUTPUT=$(timeout 60 bash -c "echo '$TASK_PROMPT' | cline --oneshot --no-interactive" 2>&1) || {
             EXIT_CODE=$?
             echo "$OUTPUT"
             echo ""
-            echo "⚠️ Method 1 failed (exit code: $EXIT_CODE), trying task new command..."
+            echo "⚠️ Method 1 failed (exit code: $EXIT_CODE), trying task new..."
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            # Method 2: Use task new command (without --oneshot, it's not supported)
-            OUTPUT2=$(cline task new "$TASK_PROMPT" --no-interactive 2>&1) || {
+            # Method 2: Use task new with explicit flags
+            OUTPUT2=$(timeout 60 cline task new --no-interactive -f src/vulnerable_code.js <<< "$TASK_PROMPT" 2>&1) || {
               EXIT_CODE2=$?
               echo "$OUTPUT2"
               echo ""
-              echo "⚠️ Method 2 failed (exit code: $EXIT_CODE2), trying with yolo flag..."
-              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              # Method 3: Use -y (yolo) flag instead
-              OUTPUT3=$(cline "$TASK_PROMPT" -o -y 2>&1) || {
-                EXIT_CODE3=$?
-                echo "$OUTPUT3"
-                echo ""
-                echo "⚠️ All Cline methods failed"
-                echo "Exit codes: Method1=$EXIT_CODE, Method2=$EXIT_CODE2, Method3=$EXIT_CODE3"
-                echo "Cline may need authentication or different configuration"
-              }
+              echo "⚠️ Method 2 failed (exit code: $EXIT_CODE2)"
+              echo "Cline may need different approach for CI/CD"
             }
           }
           
-          # Show any output from successful method
-          if [ -n "$OUTPUT" ] && [ "${EXIT_CODE:-0}" != "0" ]; then
+          echo ""
+          echo "Completed at $(date +%H:%M:%S)"
+          
+          # Show output if we got any
+          if [ -n "$OUTPUT" ]; then
             echo "$OUTPUT"
+          fi
+          if [ -n "$OUTPUT2" ]; then
+            echo "$OUTPUT2"
           fi
           
           echo ""
