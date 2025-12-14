@@ -89,11 +89,7 @@ jobs:
         run: |
           RESPONSE=$(curl -s -X POST "https://metamorph-ai-three.vercel.app/api/execute-healing" \\
             -H "Content-Type: application/json" \\
-            -d "{
-              \\"repository\\": \\"${{ github.repository }}\\",
-              \\"mission\\": \\"${{ github.event.client_payload.mission }}\\",
-              \\"github_token\\": \\"${{ secrets.GITHUB_TOKEN }}\\"
-            }")
+            -d "{\\"repository\\":\\"` + `\${{ github.repository }}` + `\\",\\"mission\\":\\"` + `\${{ github.event.client_payload.mission }}` + `\\",\\"github_token\\":\\"` + `\${{ secrets.GITHUB_TOKEN }}` + `\\"}")
           
           echo "$RESPONSE"
           echo "response=$RESPONSE" >> $GITHUB_OUTPUT
@@ -101,7 +97,7 @@ jobs:
       - name: Log Results
         run: |
           echo "Healing completed via MetaMorph AI"
-          echo "Response: ${{ steps.healing.outputs.response }}"
+          echo "Response: ` + `\${{ steps.healing.outputs.response }}` + `"
 
       - name: Run Oumi Evaluation
         run: |
