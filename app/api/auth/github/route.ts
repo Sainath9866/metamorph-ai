@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
-    const { searchParams } = new URL(request.url);
+    const { searchParams, origin } = new URL(request.url);
     const code = searchParams.get('code');
 
     if (!code) {
         // Redirect to GitHub OAuth
         const clientId = process.env.GITHUB_CLIENT_ID;
-        const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/github`;
+        const redirectUri = `${origin}/api/auth/github`;
         const scope = 'repo,workflow';
 
         const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}`;
@@ -45,9 +45,8 @@ export async function GET(request: Request) {
 
         const user = await userResponse.json();
 
-        // In production, store this in a database with session management
-        // For demo, we'll redirect with the token as a query param (NOT SECURE - demo only)
-        const response = NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/?github_connected=true`);
+        // Redirect back to dashboard
+        const response = NextResponse.redirect(`${origin}/?github_connected=true`);
 
         // Set HTTP-only cookie with token
         response.cookies.set('github_token', access_token, {
