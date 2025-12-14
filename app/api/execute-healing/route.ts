@@ -38,7 +38,7 @@ export async function POST(request: Request) {
                 {
                     env: {
                         ...process.env,
-                        ANTHROPIC_API_KEY: process.env.METAMORPH_API_KEY,
+                        OPENAI_API_KEY: process.env.METAMORPH_API_KEY,
                     },
                     timeout: 300000, // 5 minutes
                 }
