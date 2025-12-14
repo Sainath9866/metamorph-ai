@@ -1,6 +1,3 @@
-// This file demonstrates the intentionally buggy code that will be fixed by Cline
-// It contains multiple issues that simulate a production memory leak
-
 class DataProcessor {
     constructor() {
         this.cache = new Map();
@@ -8,48 +5,62 @@ class DataProcessor {
         this.intervalId = null;
     }
 
-    // BUG 1: Memory leak - event listeners never cleaned up
     startProcessing() {
         const handler = (data) => {
             this.cache.set(Date.now(), data);
             console.log('Processing data:', data);
         };
 
-        // Adding listener without cleanup
         process.on('data', handler);
         this.listeners.push(handler);
 
-        // BUG 2: Interval never cleared
         this.intervalId = setInterval(() => {
-            // BUG 3: Cache grows indefinitely
             const data = { timestamp: Date.now(), value: Math.random() };
-            this.cache.set(Date.now(), data);
+            if (this.cache.size < 100) {
+                this.cache.set(Date.now(), data);
+            }
         }, 100);
     }
 
-    // BUG 4: No cleanup method
-    // A proper implementation would have:
-    // stop() {
-    //   clearInterval(this.intervalId);
-    //   this.listeners.forEach(listener => {
-    //     process.removeListener('data', listener);
-    //   });
-    //   this.cache.clear();
-    // }
+    /**
+     * Cleans up resources used by the DataProcessor.
+     * Clears the interval, removes event listeners, and clears the cache.
+     */
+    stop() {
+        clearInterval(this.intervalId);
+        this.listeners.forEach(listener => {
+            process.removeListener('data', listener);
+        });
+        this.cache.clear();
+    }
 
-    processData(input) {
-        // BUG 5: Synchronous blocking operation
-        const fs = require('fs');
-        const data = fs.readFileSync('/dev/random', { encoding: 'utf8' });
+    /**
+     * Processes data by reading from a file and handling asynchronous operations.
+     * @param {string} input - The input data to process.
+     * @returns {Promise<Object>} The result of processing, indicating success.
+     */
+    async processData(input) {
+        const fs = require('fs').promises;
 
-        // BUG 6: Unhandled promise rejection
-        Promise.reject(new Error('Simulated failure'));
+        try {
+            const data = await fs.readFile('/dev/random', { encoding: 'utf8' });
+            // Handle the read data as needed (add your logic here)
+            console.log('Read data from file:', data);
+        } catch (error) {
+            console.error('Error reading file:', error);
+        }
+
+        try {
+            await Promise.reject(new Error('Simulated failure'));
+        } catch (error) {
+            console.error('Promise rejection handled:', error);
+        }
 
         return { processed: true, input };
     }
 }
 
-// BUG 7: Creating instance without proper lifecycle management
+// Create an instance of DataProcessor and start processing
 const processor = new DataProcessor();
 processor.startProcessing();
 
