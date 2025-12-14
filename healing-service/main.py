@@ -105,7 +105,8 @@ async def heal_repository(request: HealRequest):
         env = os.environ.copy()
         env["OPENAI_API_KEY"] = api_key
         
-        cline_cmd = f'npx -y cline@latest --autonomous --task "{request.mission}" --max-iterations 5'
+        # Use correct Cline flags: --oneshot for autonomous mode, --yolo for non-interactive
+        cline_cmd = f'npx -y cline@latest "{request.mission}" --oneshot --yolo'
         
         result = subprocess.run(
             cline_cmd,
