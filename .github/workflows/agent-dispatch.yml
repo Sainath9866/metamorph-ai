@@ -18,6 +18,7 @@ on:
 jobs:
   autonomous-healing:
     runs-on: ubuntu-latest
+    timeout-minutes: 15  # Prevent infinite runs
     permissions:
       contents: write
       pull-requests: write
@@ -38,8 +39,11 @@ jobs:
           
       - name: 📦 Install Dependencies
         run: |
-          pip install radon ast-comments pylint anthropic openai requests
-          npm install -g eslint
+          # Python dependencies (essential only)
+          pip install --no-cache-dir radon pylint anthropic openai requests
+          
+          # Skip eslint - not critical for this workflow
+          echo "✅ Dependencies installed"
 
       - name: 🔐 Verify API Key
         env:
