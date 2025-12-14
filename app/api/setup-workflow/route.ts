@@ -90,10 +90,10 @@ jobs:
 
       - name: Run autonomous healing
         env:
-          ANTHROPIC_API_KEY: \${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_API_KEY: ${process.env.METAMORPH_API_KEY || 'YOUR_KEY_HERE'}
         run: |
-          cline --autonomous \\
-            --task "\${{ github.event.client_payload.mission }}" \\
+          cline --autonomous \\\\
+            --task \\"\\${{ github.event.client_payload.mission }}\\" \\\\
             --max-iterations 5
 
       - name: Run Oumi Evaluation
@@ -178,11 +178,11 @@ This PR sets up automatic self-healing for your repository.
 
 ### Next Steps:
 1. **Merge this PR** to enable self-healing
-2. **Add Secret:** Go to Settings → Secrets → Actions and add:
-   - \`ANTHROPIC_API_KEY\` - Your Anthropic/OpenRouter API key
-3. **Trigger from Dashboard:** Use the MetaMorph dashboard to trigger healing
+2. **Trigger from Dashboard:** Use the MetaMorph dashboard to trigger healing
 
-That's it! Your repository is now protected by autonomous AI healing. 🛡️`,
+That's it! Your repository is now protected by autonomous AI healing. 🛡️
+
+*Note: This uses MetaMorph's AI infrastructure - no API key needed on your end!*`,
                 head: branchName,
                 base: defaultBranch,
             }),
