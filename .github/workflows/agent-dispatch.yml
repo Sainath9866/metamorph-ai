@@ -179,14 +179,20 @@ jobs:
 
       - name: 🔍 Scan Codebase for Vulnerabilities
         id: scan
-        continue-on-error: true  # Don't fail workflow if vulnerabilities found
         env:
           TARGET_FILES: ${{ github.event.inputs.target_files }}
         run: |
           echo "🔍 Starting vulnerability scan..."
+          
+          # Run scanner and capture output
+          set +e  # Don't exit on error
           python3 /tmp/scanner.py
           SCAN_RESULT=$?
+          set -e  # Re-enable exit on error
+          
+          # Set output for later steps
           echo "scan_exit_code=$SCAN_RESULT" >> $GITHUB_OUTPUT
+          echo "vulnerabilities_found=$([[ $SCAN_RESULT -eq 1 ]] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
           
           if [ $SCAN_RESULT -eq 1 ]; then
             echo ""
@@ -197,12 +203,15 @@ jobs:
             echo "✅ Scan complete - no vulnerabilities found"
           fi
           
-          # Exit 0 so workflow continues (we'll check scan_exit_code later)
+          # Always exit 0 so workflow continues
           exit 0
 
       - name: 🤖 Create AI Healing Agent
-        if: steps.scan.outputs.scan_exit_code == '1'
+        if: steps.scan.outputs.vulnerabilities_found == 'true'
         run: |
+          echo "✅ Vulnerabilities detected - creating healing agent..."
+          echo ""
+          
           cat > /tmp/ai_healer.py << 'HEALER'
           #!/usr/bin/env python3
           import os
@@ -437,19 +446,24 @@ jobs:
           HEALER
           
           chmod +x /tmp/ai_healer.py
+          echo "✅ Healing agent script created"
 
       - name: ⚡ Execute Autonomous Healing
-        if: steps.scan.outputs.scan_exit_code == '1' && github.event.inputs.scan_only != 'true'
+        if: steps.scan.outputs.vulnerabilities_found == 'true' && github.event.inputs.scan_only != 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
+          echo "🤖 Starting AI-powered autonomous healing..."
+          echo "⏱️  This may take 2-5 minutes depending on file count..."
+          echo ""
+          
           python3 /tmp/ai_healer.py || {
             echo "⚠️  Some files may not have been fixed"
           }
 
       - name: 📤 Commit and Create PR
-        if: steps.scan.outputs.scan_exit_code == '1' && github.event.inputs.scan_only != 'true'
+        if: steps.scan.outputs.vulnerabilities_found == 'true' && github.event.inputs.scan_only != 'true'
         run: |
           # Check if any files were modified
           if [ -z "$(git status --porcelain)" ]; then
