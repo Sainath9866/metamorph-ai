@@ -291,39 +291,12 @@ export default function MissionControl() {
                     </div>
 
                     {selectedRepo && (
-                        <div className="mb-3">
-                            <div className="text-sm text-green-400 mb-2">
-                                Selected: <span className="font-bold">{selectedRepo}</span>
-                            </div>
-
-                            {/* Setup Workflow Button */}
-                            {!setupPrUrl ? (
-                                <button
-                                    onClick={handleSetupWorkflow}
-                                    disabled={isSettingUp}
-                                    className={`w-full px-3 py-2 rounded text-sm font-bold transition-all ${isSettingUp
-                                        ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                                        : 'bg-blue-600 hover:bg-blue-700 text-white border border-blue-500'
-                                        }`}
-                                >
-                                    {isSettingUp ? '⚙️ Setting up...' : '🚀 Setup Self-Healing (One-Time)'}
-                                </button>
-                            ) : (
-                                <div className="bg-green-900 border border-green-500 rounded p-3">
-                                    <div className="text-green-400 text-sm font-bold mb-1">✅ Setup PR Created!</div>
-                                    <a
-                                        href={setupPrUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-xs text-blue-400 hover:text-blue-300 underline"
-                                    >
-                                        View PR →
-                                    </a>
-                                    <div className="text-xs text-gray-400 mt-1">Merge the PR to enable self-healing</div>
-                                </div>
-                            )}
+                        <div className="text-sm text-green-400 mb-2">
+                            ✅ Selected: <span className="font-bold">{selectedRepo}</span>
+                            <div className="text-xs text-gray-400 mt-1">Ready to heal!</div>
                         </div>
                     )}
+
 
                     {showRepoSelector && (
                         <div className="max-h-60 overflow-y-auto bg-black rounded border border-green-800 p-2">

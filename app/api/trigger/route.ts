@@ -16,58 +16,51 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Repository not specified' }, { status: 400 });
         }
 
-        // Trigger GitHub Actions workflow dispatch
-        const [owner, repo] = repository.split('/');
-
-        const response = await fetch(
-            `https://api.github.com/repos/${owner}/${repo}/dispatches`,
-            {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    Accept: 'application/vnd.github.v3+json',
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    event_type: 'deploy-agent',
-                    client_payload: {
-                        mission: error_logs || 'Fix detected issues in codebase',
-                        triggered_by: 'dashboard',
-                        timestamp: new Date().toISOString(),
-                    },
-                }),
-            }
-        );
-
-        if (!response.ok) {
-            const error = await response.text();
-            console.error('GitHub dispatch error:', error);
-            return NextResponse.json(
-                { error: 'Failed to trigger workflow on repository' },
-                { status: response.status }
-            );
-        }
-
-        // Add event to status endpoint
-        await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/status`, {
+        // Call our server-side healing endpoint directly
+        const healingResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'https://metamorph-ai-three.vercel.app'}/api/execute-healing`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+            },
             body: JSON.stringify({
-                status: 'TRIGGERED',
-                message: `Self-healing initiated on ${repository}`,
-                type: 'info',
+                repository,
+                mission: error_logs || 'Fix detected issues in codebase',
+                github_token: token,
             }),
         });
 
-        return NextResponse.json({
-            success: true,
-            message: `Workflow triggered successfully on ${repository}`,
-            repository,
-        });
+        const result = await healingResponse.json();
+
+        if (result.success) {
+            // Add event to status endpoint
+            await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'https://metamorph-ai-three.vercel.app'}/api/status`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    status: 'HEALING',
+                    message: `Self-healing initiated on ${repository}`,
+                    type: 'info',
+                }),
+            });
+
+            return NextResponse.json({
+                success: true,
+                message: result.message,
+                pr_url: result.pr_url,
+                pr_number: result.pr_number,
+                changes_made: result.changes_made,
+            });
+        } else {
+            return NextResponse.json({
+                success: false,
+                error: result.error || 'Healing failed',
+            }, { status: 500 });
+        }
+
     } catch (error) {
-        console.error('Error triggering workflow:', error);
+        console.error('Error triggering healing:', error);
         return NextResponse.json(
-            { error: 'Failed to trigger workflow' },
+            { error: 'Failed to trigger healing' },
             { status: 500 }
         );
     }
