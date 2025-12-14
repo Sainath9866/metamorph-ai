@@ -84,17 +84,24 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Install Cline CLI
+      - name: Request healing from MetaMorph AI
+        id: healing
         run: |
-          npm install -g @cline/cli
+          RESPONSE=$(curl -s -X POST "https://metamorph-ai-three.vercel.app/api/execute-healing" \\
+            -H "Content-Type: application/json" \\
+            -d "{
+              \\"repository\\": \\"${{ github.repository }}\\",
+              \\"mission\\": \\"${{ github.event.client_payload.mission }}\\",
+              \\"github_token\\": \\"${{ secrets.GITHUB_TOKEN }}\\"
+            }")
+          
+          echo "$RESPONSE"
+          echo "response=$RESPONSE" >> $GITHUB_OUTPUT
 
-      - name: Run autonomous healing
-        env:
-          ANTHROPIC_API_KEY: ${process.env.METAMORPH_API_KEY || 'YOUR_KEY_HERE'}
+      - name: Log Results
         run: |
-          cline --autonomous \\\\
-            --task \\"\\${{ github.event.client_payload.mission }}\\" \\\\
-            --max-iterations 5
+          echo "Healing completed via MetaMorph AI"
+          echo "Response: ${{ steps.healing.outputs.response }}"
 
       - name: Run Oumi Evaluation
         run: |
