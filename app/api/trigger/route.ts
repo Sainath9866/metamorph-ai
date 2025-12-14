@@ -16,8 +16,10 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Repository not specified' }, { status: 400 });
         }
 
-        // Call our server-side healing endpoint directly
-        const healingResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'https://metamorph-ai-three.vercel.app'}/api/execute-healing`, {
+        // Call Railway FastAPI backend
+        const healingServiceUrl = process.env.HEALING_SERVICE_URL || 'http://localhost:8000';
+
+        const healingResponse = await fetch(`${healingServiceUrl}/heal`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -49,11 +51,12 @@ export async function POST(request: Request) {
                 pr_url: result.pr_url,
                 pr_number: result.pr_number,
                 changes_made: result.changes_made,
+                output: result.output,
             });
         } else {
             return NextResponse.json({
                 success: false,
-                error: result.error || 'Healing failed',
+                error: result.detail || result.error || 'Healing failed',
             }, { status: 500 });
         }
 
