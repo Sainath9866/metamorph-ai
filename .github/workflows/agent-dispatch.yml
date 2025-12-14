@@ -175,14 +175,29 @@ jobs:
 
       - name: 🔍 Scan Codebase for Vulnerabilities
         id: scan
+        continue-on-error: true  # Don't fail workflow if vulnerabilities found
         env:
           TARGET_FILES: ${{ github.event.inputs.target_files }}
         run: |
+          echo "🔍 Starting vulnerability scan..."
           python3 /tmp/scanner.py
-          echo "scan_exit_code=$?" >> $GITHUB_OUTPUT
+          SCAN_RESULT=$?
+          echo "scan_exit_code=$SCAN_RESULT" >> $GITHUB_OUTPUT
+          
+          if [ $SCAN_RESULT -eq 1 ]; then
+            echo ""
+            echo "✅ Scan complete - vulnerabilities detected"
+            echo "   Proceeding to healing phase..."
+          elif [ $SCAN_RESULT -eq 0 ]; then
+            echo ""
+            echo "✅ Scan complete - no vulnerabilities found"
+          fi
+          
+          # Exit 0 so workflow continues (we'll check scan_exit_code later)
+          exit 0
 
       - name: 🤖 Create AI Healing Agent
-        if: steps.scan.outputs.scan_exit_code == '1' && github.event.inputs.scan_only != 'true'
+        if: steps.scan.outputs.scan_exit_code == '1'
         run: |
           cat > /tmp/ai_healer.py << 'HEALER'
           #!/usr/bin/env python3
@@ -499,28 +514,37 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           
           if [ -f /tmp/vulnerabilities.json ]; then
-            VULN_COUNT=$(cat /tmp/vulnerabilities.json | python3 -c "import sys, json; print(len(json.load(sys.stdin)))")
+            VULN_COUNT=$(cat /tmp/vulnerabilities.json | python3 -c "import sys, json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
             echo "🔍 Vulnerabilities found: $VULN_COUNT files"
+          else
+            echo "✅ No vulnerabilities detected"
           fi
           
           if [ -f /tmp/fixed_files.json ]; then
-            FIXED_COUNT=$(cat /tmp/fixed_files.json | python3 -c "import sys, json; d=json.load(sys.stdin); print(len(d['fixed']))")
+            FIXED_COUNT=$(cat /tmp/fixed_files.json | python3 -c "import sys, json; d=json.load(sys.stdin); print(len(d['fixed']))" 2>/dev/null || echo "0")
             echo "✅ Files fixed: $FIXED_COUNT"
           fi
           
-          if [ -n "$(git status --porcelain)" ]; then
+          if [ "${{ github.event.inputs.scan_only }}" == "true" ]; then
+            echo "ℹ️  Scan-only mode - no fixes applied"
+          elif [ -n "$(git status --porcelain 2>/dev/null)" ]; then
             echo "📝 Changes committed and pushed"
             echo "🔗 PR ready to create"
           else
-            echo "ℹ️  No changes needed or scan-only mode"
+            echo "ℹ️  No changes needed"
           fi
           
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo ""
           echo "🧠 Full autonomous workflow:"
           echo "  1. ✅ Scanned codebase for vulnerabilities"
-          echo "  2. ✅ AI analyzed and fixed issues"
-          echo "  3. ✅ Quality checked with evaluation"
-          echo "  4. ✅ Committed and pushed changes"
+          
+          if [ "${{ github.event.inputs.scan_only }}" != "true" ]; then
+            echo "  2. ✅ AI analyzed and fixed issues"
+            echo "  3. ✅ Quality checked with evaluation"
+            echo "  4. ✅ Committed and pushed changes"
+          else
+            echo "  2. ⏭️  Skipped fixing (scan-only mode)"
+          fi
           echo ""
           echo "Next: Manually create PR from the branch above"
