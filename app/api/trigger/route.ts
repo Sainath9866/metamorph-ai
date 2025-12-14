@@ -1,61 +1,73 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 
 export async function POST(request: Request) {
     try {
-        const body = await request.json();
-        const { error } = body;
+        const { repository, error_logs } = await request.json();
 
-        // In production, this would trigger Kestra via REST API
-        // For hackathon demo, we can simulate or call actual Kestra
+        const cookieStore = cookies();
+        const token = cookieStore.get('github_token')?.value;
 
-        const kestraUrl = process.env.KESTRA_API_URL || 'http://localhost:8080';
-        const flowId = 'metamorph_healing_loop';
-        const namespace = 'ai.metamorph';
-
-        console.log('🔥 Simulating production failure:', error);
-
-        // Trigger Kestra flow execution (requires multipart/form-data)
-        try {
-            const formData = new FormData();
-            formData.append('inputs.error_logs', error);
-
-            const response = await fetch(`${kestraUrl}/api/v1/executions/${namespace}/${flowId}`, {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Kestra API error:', errorText);
-                return NextResponse.json({
-                    success: false,
-                    message: 'Failed to trigger Kestra workflow',
-                    error: errorText,
-                }, { status: response.status });
-            }
-
-            const execution = await response.json();
-            return NextResponse.json({
-                success: true,
-                message: 'Kestra workflow triggered successfully',
-                flowId,
-                namespace,
-                executionId: execution.id,
-                error,
-            });
-        } catch (fetchError) {
-            console.error('Error calling Kestra:', fetchError);
-            return NextResponse.json({
-                success: false,
-                message: 'Failed to connect to Kestra',
-                error: (fetchError as Error).message,
-            }, { status: 500 });
+        if (!token) {
+            return NextResponse.json({ error: 'Not authenticated with GitHub' }, { status: 401 });
         }
 
+        if (!repository) {
+            return NextResponse.json({ error: 'Repository not specified' }, { status: 400 });
+        }
+
+        // Trigger GitHub Actions workflow dispatch
+        const [owner, repo] = repository.split('/');
+
+        const response = await fetch(
+            `https://api.github.com/repos/${owner}/${repo}/dispatches`,
+            {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    Accept: 'application/vnd.github.v3+json',
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    event_type: 'deploy-agent',
+                    client_payload: {
+                        mission: error_logs || 'Fix detected issues in codebase',
+                        triggered_by: 'dashboard',
+                        timestamp: new Date().toISOString(),
+                    },
+                }),
+            }
+        );
+
+        if (!response.ok) {
+            const error = await response.text();
+            console.error('GitHub dispatch error:', error);
+            return NextResponse.json(
+                { error: 'Failed to trigger workflow on repository' },
+                { status: response.status }
+            );
+        }
+
+        // Add event to status endpoint
+        await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                status: 'TRIGGERED',
+                message: `Self-healing initiated on ${repository}`,
+                type: 'info',
+            }),
+        });
+
+        return NextResponse.json({
+            success: true,
+            message: `Workflow triggered successfully on ${repository}`,
+            repository,
+        });
     } catch (error) {
-        console.error('Trigger error:', error);
+        console.error('Error triggering workflow:', error);
         return NextResponse.json(
-            { success: false, error: 'Failed to trigger workflow' },
+            { error: 'Failed to trigger workflow' },
             { status: 500 }
         );
     }
